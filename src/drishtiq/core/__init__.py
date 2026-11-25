@@ -1,6 +1,6 @@
 """Core shared models, contracts, and configurations."""
 
-from nazarbit.core.schemas import (
+from drishtiq.core.schemas import (
     BoundingBox,
     ChunkAnalysis,
     ComplexityLevel,

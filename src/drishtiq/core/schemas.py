@@ -1,4 +1,4 @@
-"""Shared data schemas and contracts for NazarBit."""
+"""Shared data schemas and contracts for DrishtiQ."""
 
 from datetime import datetime, timezone
 from enum import Enum

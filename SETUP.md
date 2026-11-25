@@ -1,6 +1,6 @@
-# NazarBit Team Setup Guide (Cross-Platform)
+# DrishtiQ Team Setup Guide (Cross-Platform)
 
-Welcome to the **NazarBit** project! This guide ensures that all 4 team members have the exact same environment and dependencies with zero version conflicts.
+Welcome to the **DrishtiQ** project! This guide ensures that all 4 team members have the exact same environment and dependencies with zero version conflicts.
 
 > ### 🛑 CRITICAL RULE: DO NOT USE `pip install`!
 > **Never run `pip install` anywhere in this project.**
@@ -79,7 +79,7 @@ Always run commands via `uv run`:
 | Goal | Command |
 | :--- | :--- |
 | **Run a script** | `uv run python path/to/script.py` |
-| **Run the Streamlit Demo** | `uv run streamlit run src/nazarbit/demo/app.py` |
+| **Run the Streamlit Demo** | `uv run streamlit run src/drishtiq/demo/app.py` |
 | **Run Tests** | `uv run pytest` |
 | **Format & Lint Code** | `uv run ruff check .` and `uv run ruff format .` |
 | **Add a new library** | `uv add <package>` (never use pip!) |
@@ -90,8 +90,8 @@ Always run commands via `uv run`:
 
 | Member | Module Directory | Responsibility |
 | :--- | :--- | :--- |
-| **Member 1** | `src/nazarbit/analysis/` | Scene cut detection, motion/texture complexity, ROI detection |
-| **Member 2** | `src/nazarbit/encoding/` | FFmpeg pipelines, fixed vs. content-aware chunk ladders, SSIM |
-| **Member 3** | `src/nazarbit/streaming/` | ABR baseline, budget-aware bitrate selection, network simulation |
-| **Member 4** | `src/nazarbit/demo/` | Streamlit side-by-side dashboard, player, metrics & charts |
-| **Shared** | `src/nazarbit/core/` | Shared data schemas (`schemas.py`), configuration (`config.py`) |
+| **Member 1** | `src/drishtiq/analysis/` | Scene cut detection, motion/texture complexity, ROI detection |
+| **Member 2** | `src/drishtiq/encoding/` | FFmpeg pipelines, fixed vs. content-aware chunk ladders, SSIM |
+| **Member 3** | `src/drishtiq/streaming/` | ABR baseline, budget-aware bitrate selection, network simulation |
+| **Member 4** | `src/drishtiq/demo/` | Streamlit side-by-side dashboard, player, metrics & charts |
+| **Shared** | `src/drishtiq/core/` | Shared data schemas (`schemas.py`), configuration (`config.py`) |

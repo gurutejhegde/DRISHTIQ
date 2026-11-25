@@ -1,4 +1,4 @@
-# NazarBit: Core Principles & Project Goal
+# DrishtiQ: Core Principles & Project Goal
 
 ## 🎯 The Main Goal
 > **Develop an intelligent video streaming system that identifies visually important regions, preserves their quality while reducing quality in less important regions, and intelligently allocates available bandwidth to deliver a better viewing experience with lower data consumption and minimal buffering.**
@@ -13,7 +13,7 @@
    - Keep functions focused: each function should do one thing well.
 
 2. **Data Contracts First**:
-   - All inter-module communication must use strict schemas defined in `src/nazarbit/core/schemas.py`.
+   - All inter-module communication must use strict schemas defined in `src/drishtiq/core/schemas.py`.
    - Never pass loose untyped dictionaries between modules.
 
 3. **No `pip` Rule**:

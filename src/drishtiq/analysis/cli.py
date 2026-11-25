@@ -1,13 +1,13 @@
-"""Command-line interface for Member 1: Content Analysis."""
+"""Command-line interface for Member 1: Content Analysis (DrishtiQ)."""
 
 import argparse
 from pathlib import Path
 
-from nazarbit.analysis.analyzer import ContentAnalyzer
+from drishtiq.analysis.analyzer import ContentAnalyzer
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NazarBit Content Analysis CLI (Member 1)")
+    parser = argparse.ArgumentParser(description="DrishtiQ Content Analysis CLI (Member 1)")
     parser.add_argument("video_path", type=str, help="Path to input video file")
     parser.add_argument(
         "--chunk-duration",

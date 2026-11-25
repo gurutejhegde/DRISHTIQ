@@ -1,1 +1,1 @@
-"""Tests for NazarBit."""
+"""Tests for DrishtiQ."""

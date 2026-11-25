@@ -1,8 +1,8 @@
-# NazarBit
+# DRISHTIQ
 
 **Viewer-Aware Streaming: Personalized Quality per Megabyte**
 
-> NazarBit is a proposed video-streaming concept that aims to make better use of limited internet bandwidth by prioritizing important parts of a video and adapting optional personalized content to the viewer's network conditions.
+> DrishtiQ is a proposed video-streaming concept that aims to make better use of limited internet bandwidth by prioritizing important parts of a video and adapting optional personalized content to the viewer's network conditions.
 
 ## The Problem
 
@@ -16,7 +16,7 @@ The challenge is to manage video quality, personalization, and changing network 
 
 ## Our Idea
 
-NazarBit explores a viewer-aware streaming approach that tries to use each megabyte more effectively.
+DrishtiQ explores a viewer-aware streaming approach that tries to use each megabyte more effectively.
 
 Instead of treating every part of a video equally, the system aims to identify which visual regions are important and preserve more quality in those areas. It also considers the viewer's preferences, where that information is available, and adapts optional personalized content according to the bandwidth available.
 
@@ -24,7 +24,7 @@ The goal is not simply to stream at the highest resolution. The goal is to deliv
 
 ## How the Proposed Solution Works
 
-NazarBit is based on three connected ideas:
+DrishtiQ is based on three connected ideas:
 
 ### 1. Give More Quality to Important Video Regions
 
@@ -36,7 +36,7 @@ The intention is to use available video data where it contributes most to the vi
 
 ### 2. Prepare Available Content in Advance
 
-Some video content is requested by many viewers, and some upcoming content may already be available before it is needed. NazarBit explores using nearby or intermediate storage to keep reusable video segments and fetching likely-needed segments when network capacity permits.
+Some video content is requested by many viewers, and some upcoming content may already be available before it is needed. DrishtiQ explores using nearby or intermediate storage to keep reusable video segments and fetching likely-needed segments when network capacity permits.
 
 For live streaming, this does not mean predicting footage that has not yet been created. Newly produced live segments can be temporarily stored and shared with viewers who request the same content. Prefetching can only prepare content that is already available, and an incorrect prediction can waste data. For that reason, advance downloads should be limited and their usefulness measured.
 
@@ -58,7 +58,7 @@ This approach aims to balance three priorities:
 
 Imagine a student attending an online programming class over a mobile connection. The video shows the instructor, a code editor, and a presentation. The connection becomes slow, and the student has also enabled regional-language subtitles.
 
-A conventional quality reduction may make the entire video less clear, including the code and presentation text. NazarBit's proposed approach would try to preserve the clarity of the important learning content, while adapting optional elements such as additional overlays to the available bandwidth. If an upcoming video segment is already available, it may also be prepared in advance when network conditions permit.
+A conventional quality reduction may make the entire video less clear, including the code and presentation text. DrishtiQ's proposed approach would try to preserve the clarity of the important learning content, while adapting optional elements such as additional overlays to the available bandwidth. If an upcoming video segment is already available, it may also be prepared in advance when network conditions permit.
 
 The same idea can apply to sports, entertainment, news, and other video-streaming situations where some visual information is more important than other information.
 
@@ -70,7 +70,7 @@ The primary measure of interest is **perceived video quality per megabyte delive
 
 ## Project Scope
 
-NazarBit is currently a project concept. The proposed approach and its components still need to be implemented, tested, and compared under consistent conditions. The project does not claim to be a deployed streaming service or a production content-delivery network.
+DrishtiQ is currently a project concept. The proposed approach and its components still need to be implemented, tested, and compared under consistent conditions. The project does not claim to be a deployed streaming service or a production content-delivery network.
 
 The key questions to investigate are whether prioritizing visual regions provides a measurable benefit, whether adapting personalization helps under limited bandwidth, and whether preparing reusable upcoming content improves delivery without wasting more data than it saves.
 
@@ -78,13 +78,13 @@ The key questions to investigate are whether prioritizing visual regions provide
 
 The intended outcome is a working demonstration and a fair comparison with a conventional adaptive-streaming baseline. The comparison should use the same video content and network conditions, and should report both video quality and the actual amount of data delivered.
 
-NazarBit's central principle is simple:
+DrishtiQ's central principle is simple:
 
 **Use limited bandwidth where it matters most to the viewer.**
 
 ---
 
-**Project name:** NazarBit (working name)  
+**Project name:** DRISHTIQ  
 **Challenge:** Viewer-Aware Streaming — Personalized Quality per Megabyte  
 **TECHgium Project ID:** 14028  
 **Institution:** Anjuman Institute of Technology and Management, Bhatkal  

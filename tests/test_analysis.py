@@ -6,8 +6,8 @@ import cv2
 import numpy as np
 import pytest
 
-from nazarbit.analysis.analyzer import ContentAnalyzer
-from nazarbit.core.schemas import ComplexityLevel, VideoAnalysisReport
+from drishtiq.analysis.analyzer import ContentAnalyzer
+from drishtiq.core.schemas import ComplexityLevel, VideoAnalysisReport
 
 
 @pytest.fixture(scope="module")

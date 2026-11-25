@@ -1,4 +1,4 @@
-"""Member 1: Content Analysis Engine for NazarBit.
+"""Member 1: Content Analysis Engine for DrishtiQ.
 
 Performs:
 1. Video ingestion & frame sampling.
@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 from scenedetect import ContentDetector, SceneManager, open_video
 
-from nazarbit.core.schemas import (
+from drishtiq.core.schemas import (
     BoundingBox,
     ChunkAnalysis,
     ComplexityLevel,

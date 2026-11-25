@@ -1,5 +1,5 @@
 [project]
-name = "nazarbit"
+name = "drishtiq"
 version = "0.1.0"
 description = "Viewer-Aware Streaming: Personalized Quality per Megabyte"
 readme = "README.md"
@@ -42,7 +42,7 @@ ml = [
 ]
 
 [project.scripts]
-nazarbit-analyze = "nazarbit.analysis.cli:main"
+drishtiq-analyze = "drishtiq.analysis.cli:main"
 
 [build-system]
 requires = ["hatchling"]

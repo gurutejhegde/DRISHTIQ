@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform environment diagnostic script for NazarBit.
+"""Cross-platform environment diagnostic script for DrishtiQ.
 
 Checks:
 1. Python version (>= 3.12, < 3.13)
@@ -73,11 +73,11 @@ def check_directories() -> bool:
         root / "data" / "chunks",
         root / "data" / "manifests",
         root / "data" / "logs",
-        root / "src" / "nazarbit" / "core",
-        root / "src" / "nazarbit" / "analysis",
-        root / "src" / "nazarbit" / "encoding",
-        root / "src" / "nazarbit" / "streaming",
-        root / "src" / "nazarbit" / "demo",
+        root / "src" / "drishtiq" / "core",
+        root / "src" / "drishtiq" / "analysis",
+        root / "src" / "drishtiq" / "encoding",
+        root / "src" / "drishtiq" / "streaming",
+        root / "src" / "drishtiq" / "demo",
         root / "tests",
     ]
     all_ok = True
@@ -92,7 +92,7 @@ def check_directories() -> bool:
 
 def main():
     print("=" * 70)
-    print(" NazarBit Environment & Dependency Diagnostic")
+    print(" DrishtiQ Environment & Dependency Diagnostic")
     print("=" * 70)
 
     py_ok = check_python_version()
