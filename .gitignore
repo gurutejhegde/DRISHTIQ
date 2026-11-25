@@ -39,13 +39,21 @@ venv.bak/
 .coverage
 htmlcov/
 
-# Video artifacts & data storage (keep skeleton with .gitkeep)
+# Video artifacts & data storage
 data/raw/*
 !data/raw/.gitkeep
+# Allow lightweight test clips for team testing, ignore full-length movies
+!data/raw/avengers_15s.mp4
+!data/raw/avengers_30s.mp4
+
 data/chunks/*
 !data/chunks/.gitkeep
+
 data/manifests/*
 !data/manifests/.gitkeep
+!data/manifests/avengers_15s_analysis.json
+!data/manifests/avengers_15s_analysis.csv
+
 data/logs/*
 !data/logs/.gitkeep
 

@@ -41,6 +41,9 @@ ml = [
     "ultralytics>=8.2.0",
 ]
 
+[project.scripts]
+nazarbit-analyze = "nazarbit.analysis.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
