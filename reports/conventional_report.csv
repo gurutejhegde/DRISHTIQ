@@ -1,8 +1,0 @@
-bitrate_kbps,buffer_s,chunk_index,download_time_s,estimated_bandwidth_kbps,remaining_budget_bytes,rendition,selected_rendition,size_bytes,ssim,stall_s,status
-1061.7,2.0,0,1.063,2000.0,1234301,480p,,265699,0.991593,0.0,downloaded
-945.9,2.738,1,1.262,1850.0,997601,480p,,236700,0.990873,0.0,downloaded
-1279.5,2.176,2,2.562,1595.0,677404,480p,,320197,0.994169,0.0,downloaded
-955.0,2.0,3,2.731,1326.5,438408,480p,,238996,0.996235,0.555,downloaded
-1002.0,2.328,4,1.672,1288.55,187648,480p,,250760,0.995423,0.0,downloaded
-640.8,2.725,5,1.604,1141.98,27286,240p,,160362,0.991388,0.0,downloaded
-,,6,,,27286,,360p,,,,budget_exhausted

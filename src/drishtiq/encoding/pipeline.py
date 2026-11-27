@@ -3,7 +3,7 @@
 Member 2 - Content-Aware Encoding pipeline.
 
 Input : source video + Member 1's per-chunk metadata (JSON/CSV/list/DataFrame)
-Output: encoded/{mode}/{resolution}/chunk_###.mp4  +  encoded/{mode}/manifest.json (+ manifest.csv)
+Output: data/chunks/{mode}/{resolution}/chunk_###.mp4 + manifest.json (+ manifest.csv)
 
 Modes
   conventional  : every chunk uses the SAME fixed bitrate per rung (the baseline)
@@ -11,10 +11,10 @@ Modes
                   (hard / important chunks -> lower CRF -> more bits)
 
 Public API (for Member 3 / 4):
-  encode_video(path, metadata, mode="both", out_dir="encoded") -> manifest path(s)
+  encode_video(path, metadata, mode="both", out_dir="data/chunks") -> manifest path(s)
 
 CLI:
-  python encode.py --video input.mp4 --metadata analysis.json --mode both
+  uv run python -m drishtiq.encoding.pipeline --video input.mp4 --metadata analysis.json
 """
 
 from __future__ import annotations
@@ -440,7 +440,7 @@ def encode_video(
     path: str,
     metadata,
     mode: str = "both",
-    out_dir: str = "encoded",
+    out_dir: str = "data/chunks",
     segment_len: float = 2.0,
     preset: str = "veryfast",
     workers: int = 2,
@@ -516,7 +516,7 @@ def main():
     ap.add_argument("--video", help="source video (default: path stored in metadata JSON)")
     ap.add_argument("--metadata", required=True, help="Member 1's *_analysis.json / .csv")
     ap.add_argument("--mode", default="both", choices=["conventional", "content_aware", "both"])
-    ap.add_argument("--out", default="encoded")
+    ap.add_argument("--out", default="data/chunks")
     ap.add_argument("--segment-len", type=float, default=2.0)
     ap.add_argument("--no-normalize", action="store_true")
     ap.add_argument("--preset", default="veryfast")
