@@ -50,8 +50,9 @@ def select_budget_aware(
     remaining_chunks: int,
     priority: str | float = "medium",
     safety_factor: float = 0.85,
+    buffer_s: float | None = None,
 ) -> dict[str, Any]:
-    """Select quality using bandwidth, remaining budget and chunk priority."""
+    """Select quality using bandwidth, remaining budget, buffer, and chunk priority."""
 
     if not renditions:
         raise ValueError("At least one rendition is required.")
@@ -87,7 +88,10 @@ def select_budget_aware(
     if priority not in priority_weights:
         raise ValueError("Priority must be low, medium or high.")
 
-    safe_bandwidth = bandwidth_kbps * safety_factor
+    # Tighten bandwidth safety margin when playback buffer is dangerously low.
+    low_buffer = buffer_s is not None and buffer_s < 1.5
+    effective_safety = min(safety_factor, 0.65) if low_buffer else safety_factor
+    safe_bandwidth = bandwidth_kbps * effective_safety
     chunk_allowance = remaining_budget_bytes / remaining_chunks
 
     bandwidth_options = [

@@ -43,6 +43,7 @@ ml = [
 
 [project.scripts]
 drishtiq-analyze = "drishtiq.analysis.cli:main"
+drishtiq-encode = "drishtiq.encoding.pipeline:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -9,7 +9,7 @@ from typing import Any
 
 def save_report(
     results: dict[str, Any],
-    output_dir: str | Path = "reports",
+    output_dir: str | Path = "data/logs",
 ) -> tuple[Path, Path]:
     """Save streaming results as JSON and CSV files."""
 

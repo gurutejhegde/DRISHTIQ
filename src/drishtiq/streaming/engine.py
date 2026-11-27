@@ -99,7 +99,8 @@ def run_stream(
                 bandwidth_kbps=estimated_bandwidth,
                 remaining_budget_bytes=remaining_budget,
                 remaining_chunks=len(chunks) - index,
-               priority=chunk.get("priority", "medium"),
+                priority=chunk.get("priority", "medium"),
+                buffer_s=buffer_s if index > 0 else None,
             )
 
         size_bytes = int(selected["size_bytes"])
@@ -137,7 +138,7 @@ def run_stream(
 
         # Update throughput estimate using an exponential moving average.
         measured_throughput = (
-            size_bytes * 8 / (download_time_s * 1000)
+            size_bytes * 8 / (max(download_time_s, 1e-6) * 1000)
         )
 
         estimated_bandwidth = (
@@ -149,6 +150,7 @@ def run_stream(
             "chunk_index": chunk.get("index", index),
             "status": "downloaded",
             "rendition": selected.get("name"),
+            "path": selected.get("path", ""),
             "bitrate_kbps": float(selected["bitrate_kbps"]),
             "size_bytes": size_bytes,
             "ssim": float(selected.get("ssim", 0.0)),
@@ -159,23 +161,20 @@ def run_stream(
             "estimated_bandwidth_kbps": round(estimated_bandwidth, 2),
         })
 
+    downloaded_entries = [entry for entry in logs if entry["status"] == "downloaded"]
+    downloaded_count = len(downloaded_entries)
+    avg_buffer = sum(e["buffer_s"] for e in downloaded_entries) / max(downloaded_count, 1)
+    avg_ssim = sum(e["ssim"] for e in downloaded_entries) / max(downloaded_count, 1)
+
     return {
         "mode": mode,
         "total_chunks": len(chunks),
-        "downloaded_chunks": sum(
-            1 for entry in logs if entry["status"] == "downloaded"
-        ),
+        "downloaded_chunks": downloaded_count,
         "total_downloaded_bytes": total_downloaded,
         "remaining_budget_bytes": remaining_budget,
         "total_stall_s": round(total_stall_s, 3),
-        "average_buffer_s": round(
-            sum(
-                entry["buffer_s"]
-                for entry in logs
-                if entry["status"] == "downloaded"
-            ) / max(total_downloaded_chunks(logs), 1),
-            3,
-        ),
+        "average_buffer_s": round(avg_buffer, 3),
+        "average_ssim": round(avg_ssim, 5),
         "logs": logs,
     }
 
