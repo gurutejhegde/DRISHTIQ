@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 4px 2px 12px;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: transparent;
+      color: #F1F5F9;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #0F1420;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .btn {
+      border: 1px solid rgba(255,255,255,0.16);
+      background: #161D2E;
+      color: #F1F5F9;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: #E5A93C; }
+    .btn-amber { background: #E5A93C; color: #090B10; border-color: transparent; }
+    .btn-danger { background: #DC2626; color: #FFFFFF; border-color: transparent; }
+    .btn-active { box-shadow: 0 0 0 2px #E5A93C inset; }
+    .bw-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-family: ui-monospace, monospace;
+    }
+    .bw-ctrl input[type="range"] { width: 170px; accent-color: #E5A93C; cursor: pointer; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #0F1420;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .card.proposed { border-color: #E5A93C; }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .head h3 { margin: 0; font-size: 15px; }
+    .pill {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #161D2E;
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .pill.accent { background: #E5A93C; color: #090B10; border-color: transparent; }
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #05070C;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+    .stage video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #05070C;
+      opacity: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .stage video.active {
+      opacity: 1;
+      z-index: 2;
+    }
+    canvas.overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .stall-banner {
+      position: absolute;
+      inset: 0;
+      background: rgba(127, 29, 29, 0.72);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      text-align: center;
+      padding: 12px;
+      z-index: 4;
+    }
+    .stall-banner.active { display: flex; }
+    .stats {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      font-family: ui-monospace, monospace;
+    }
+    .stat {
+      background: #161D2E;
+      border-radius: 8px;
+      padding: 7px 9px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .stat label { display: block; font-size: 10px; color: #8B9BB4; text-transform: uppercase; }
+    .stat span { font-size: 13px; font-weight: 700; color: #F1F5F9; }
+    .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #8B9BB4;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    kbd {
+      background: #161D2E;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 11px;
+      color: #F1F5F9;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="btn-row">
+      <button id="btnStart" class="btn btn-amber" type="button">▶ Play / Restart</button>
+      <button id="btnAudio" class="btn" type="button">🔇 Audio Off [M]</button>
+      <button id="btnDrop" class="btn btn-danger" type="button">⚡ Drop to 300 kbps [D]</button>
+      <button id="btnRecover" class="btn" type="button">▲ Recover 3 Mbps [R]</button>
+      <button id="btnHeat" class="btn" type="button">🔥 Saliency Heatmap [H]</button>
+    </div>
+    <div class="bw-ctrl">
+      <span>Live BW:</span>
+      <input id="bwRange" type="range" min="200" max="3500" step="50" value="3000" />
+      <strong id="bwText">3000 kbps</strong>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="head">
+        <h3>Conventional ABR (Uniform)</h3>
+        <span id="cRungPill" class="pill">—</span>
+      </div>
+      <div class="stage">
+        <video id="cVidA" class="active" muted playsinline preload="auto"></video>
+        <video id="cVidB" muted playsinline preload="auto"></video>
+        <canvas id="cCanvas" class="overlay"></canvas>
+        <div id="cStall" class="stall-banner">
+          <span>REBUFFERING / STALL</span>
+          <small>Waiting on high-bitrate chunk...</small>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><label>Bitrate</label><span id="cBr">0 kbps</span></div>
+        <div class="stat"><label>Buffer</label><span id="cBuf">0.0 s</span></div>
+        <div class="stat"><label>Rebuffers</label><span id="cRebuf">0 (0.0s)</span></div>
+        <div class="stat"><label>Downloaded</label><span id="cBytes">0.00 MB</span></div>
+        <div class="stat"><label>Selected Rung</label><span id="cRung">—</span></div>
+        <div class="stat"><label>ROI SSIM</label><span id="cSsim">—</span></div>
+      </div>
+    </div>
+
+    <div class="card proposed">
+      <div class="head">
+        <h3>DRISHTIQ (ROI + Background Reduced)</h3>
+        <span id="pRungPill" class="pill accent">—</span>
+      </div>
+      <div class="stage">
+        <video id="pVidA" class="active" muted playsinline preload="auto"></video>
+        <video id="pVidB" muted playsinline preload="auto"></video>
+        <canvas id="pCanvas" class="overlay"></canvas>
+        <div id="pStall" class="stall-banner">
+          <span>REBUFFERING</span>
+          <small>Adjusting to bandwidth...</small>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><label>Bitrate</label><span id="pBr">0 kbps</span></div>
+        <div class="stat"><label>Buffer</label><span id="pBuf">0.0 s</span></div>
+        <div class="stat"><label>Rebuffers</label><span id="pRebuf">0 (0.0s)</span></div>
+        <div class="stat"><label>Downloaded</label><span id="pBytes">0.00 MB</span></div>
+        <div class="stat"><label>Selected Rung</label><span id="pRung">—</span></div>
+        <div class="stat"><label>ROI SSIM</label><span id="pSsim">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">
+    <span>Shortcuts (click player area first): <kbd>M</kbd> Audio · <kbd>D</kbd> Drop 300 kbps · <kbd>R</kbd> Recover 3 Mbps · <kbd>H</kbd> DRISHTIQ Saliency Heatmap</span>
+    <span id="chunkInfo">Ready · Press Play</span>
+  </div>
+
+  <script>
+    const DATA = __DATA_JSON__;
+    const HOST = (() => {
+      try {
+        if (window.parent && window.parent.location && window.parent.location.hostname) {
+          return window.parent.location.hostname;
+        }
+      } catch (e) {}
+      return DATA.host || "127.0.0.1";
+    })();
+    const BASE_URL = `http://${HOST}:${DATA.port}/${DATA.stem}`;
+
+    let liveBwKbps = 3000;
+    let showHeatmap = false;
+    let audioEnabled = false;
+    let running = false;
+    let timerId = null;
+
+    const makePlayerState = (mode, chunks, vidEls, canvasEl, stallEl) => ({
+      mode,
+      chunks,
+      vidEls,
+      activeSlot: 0,
+      canvasEl,
+      stallEl,
+      playIdx: 0,
+      dlIdx: 0,
+      buffer: [],
+      preloadedItem: null,
+      estBw: 3000,
+      bytesDown: 0,
+      rebufCount: 0,
+      stallS: 0,
+      stalled: false,
+      dlActive: false,
+      dlProgressBytes: 0,
+      dlTargetRend: null,
+      dlChunkObj: null,
+      dlBlobPromise: null,
+      dlBlobUrl: null,
+      dlToken: 0,
+      chunkPlaying: false,
+      lastRend: null,
+    });
+
+    const activeVid = (pState) => pState.vidEls[pState.activeSlot];
+    const standbyVid = (pState) => pState.vidEls[1 - pState.activeSlot];
+
+    let conv = null;
+    let prop = null;
+
+    function selectConv(rends, bw) {
+      const safe = bw * 0.85;
+      const ok = rends.filter((r) => r.bitrate_kbps <= safe);
+      return ok.length ? ok[ok.length - 1] : rends[0];
+    }
+
+    function selectProp(rends, bw, bufLen, chunk) {
+      const safety = bufLen < 2.0 ? 0.60 : 0.78;
+      const safe = bw * safety;
+      let ok = rends.filter((r) => r.bitrate_kbps <= safe);
+      if (!ok.length) ok = [rends[0]];
+      const prio = Number(chunk.priority || 0.5);
+      const w = prio >= 0.75 ? 0.0002 : 0.0008;
+      return ok.reduce((best, r) => {
+        const qb = (best.roi_ssim || best.ssim || 0) - w * (best.size_bytes / 150000);
+        const qc = (r.roi_ssim || r.ssim || 0) - w * (r.size_bytes / 150000);
+        return qc > qb ? r : best;
+      });
+    }
+
+    function heatColor(val) {
+      const v = Math.max(0, Math.min(1, val));
+      if (v < 0.25) return [0, 0, 0, 0];
+      const alpha = Math.round(Math.min(185, (v - 0.2) * 230));
+      const r = v > 0.6 ? 255 : Math.round(255 * ((v - 0.25) / 0.35));
+      const g = v > 0.6 ? Math.round(210 * (1 - (v - 0.6) / 0.4)) : 180;
+      return [r, g, 40, alpha];
+    }
+
+    function drawOverlay(pState) {
+      const c = pState.canvasEl;
+      if (c.width !== c.clientWidth || c.height !== c.clientHeight) {
+        c.width = c.clientWidth || 640;
+        c.height = c.clientHeight || 360;
+      }
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, c.width, c.height);
+      if (!showHeatmap || pState.mode !== "prop") return;
+
+      const cIdx = Math.min(pState.playIdx, DATA.caChunks.length - 1);
+      const caChunk = DATA.caChunks[cIdx] || {};
+      const hm = caChunk.heatmap || [];
+      if (hm.length && hm[0].length) {
+        const rows = hm.length, cols = hm[0].length;
+        const off = document.createElement("canvas");
+        off.width = cols; off.height = rows;
+        const octx = off.getContext("2d");
+        const img = octx.createImageData(cols, rows);
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            const [r, g, b, a] = heatColor(hm[y][x]);
+            const idx = (y * cols + x) * 4;
+            img.data[idx] = r; img.data[idx + 1] = g; img.data[idx + 2] = b; img.data[idx + 3] = a;
+          }
+        }
+        octx.putImageData(img, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(off, 0, 0, c.width, c.height);
+      }
+
+      const roi = caChunk.roi_box;
+      if (roi) {
+        ctx.strokeStyle = "#E5A93C";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(roi.x * c.width, roi.y * c.height, roi.width * c.width, roi.height * c.height);
+        ctx.fillStyle = "rgba(9,11,16,0.8)";
+        ctx.fillRect(roi.x * c.width, Math.max(0, roi.y * c.height - 20), 130, 18);
+        ctx.fillStyle = "#E5A93C";
+        ctx.font = "bold 11px ui-monospace, monospace";
+        ctx.fillText(`ROI (${roi.label})`, roi.x * c.width + 4, Math.max(13, roi.y * c.height - 6));
+      }
+    }
+
+    async function fetchChunkBlob(modeDir, relPath) {
+      const url = `${BASE_URL}/${modeDir}/${relPath}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    }
+
+    function queuedCount(pState) {
+      return pState.buffer.length + (pState.preloadedItem ? 1 : 0);
+    }
+
+    function queuedSeconds(pState) {
+      return pState.buffer.reduce((s, b) => s + b.dur, 0) + (pState.preloadedItem ? pState.preloadedItem.dur : 0);
+    }
+
+    function preloadStandby(pState) {
+      if (pState.preloadedItem || pState.buffer.length === 0) return;
+      const item = pState.buffer.shift();
+      pState.preloadedItem = item;
+      const sv = standbyVid(pState);
+      sv.onended = null;
+      sv.muted = true;
+      if (sv.dataset.blobUrl && sv.dataset.blobUrl !== item.blobUrl) {
+        URL.revokeObjectURL(sv.dataset.blobUrl);
+        delete sv.dataset.blobUrl;
+      }
+      sv.dataset.blobUrl = item.blobUrl;
+      sv.src = item.blobUrl;
+      sv.load();
+    }
+
+    function startNextDownload(pState, modeDir) {
+      if (pState.dlActive || pState.dlIdx >= pState.chunks.length || queuedCount(pState) >= 2) return;
+      const chunk = pState.chunks[pState.dlIdx];
+      const bufSec = queuedSeconds(pState);
+      const rend = pState.mode === "conv"
+        ? selectConv(chunk.renditions, pState.estBw)
+        : selectProp(chunk.renditions, pState.estBw, bufSec, chunk);
+
+      const token = ++pState.dlToken;
+      pState.dlActive = true;
+      pState.dlProgressBytes = 0;
+      pState.dlTargetRend = rend;
+      pState.dlChunkObj = chunk;
+      pState.dlBlobUrl = null;
+      pState.dlBlobPromise = fetchChunkBlob(modeDir, rend.path)
+        .then((url) => {
+          if (pState.dlToken !== token) {
+            URL.revokeObjectURL(url);
+            return null;
+          }
+          pState.dlBlobUrl = url;
+          return url;
+        })
+        .catch((err) => {
+          if (pState.dlToken === token) {
+            document.getElementById("chunkInfo").textContent = `Chunk load error: ${err.message}`;
+          }
+          return null;
+        });
+    }
+
+    function playNextFromBuffer(pState) {
+      if (pState.chunkPlaying) return;
+      preloadStandby(pState);
+      if (!pState.preloadedItem) {
+        if (pState.lastRend !== null && pState.playIdx + 1 < pState.chunks.length) {
+          if (!pState.stalled) {
+            pState.rebufCount += 1;
+            pState.stalled = true;
+          }
+          pState.stallEl.classList.add("active");
+          activeVid(pState).pause();
+        }
+        return;
+      }
+
+      const item = pState.preloadedItem;
+      pState.preloadedItem = null;
+      const prevVid = activeVid(pState);
+      const nextSlot = 1 - pState.activeSlot;
+      const nextVid = pState.vidEls[nextSlot];
+      pState.activeSlot = nextSlot;
+
+      pState.stalled = false;
+      pState.stallEl.classList.remove("active");
+      pState.playIdx = item.idx;
+      pState.lastRend = item.rend;
+      pState.chunkPlaying = true;
+
+      nextVid.muted = !(audioEnabled && pState.mode === "prop");
+      nextVid.classList.add("active");
+      prevVid.classList.remove("active");
+      prevVid.onended = null;
+      prevVid.pause();
+      if (prevVid.dataset.blobUrl) {
+        URL.revokeObjectURL(prevVid.dataset.blobUrl);
+        delete prevVid.dataset.blobUrl;
+      }
+
+      nextVid.onended = () => {
+        pState.chunkPlaying = false;
+        if (pState.playIdx + 1 < pState.chunks.length) {
+          playNextFromBuffer(pState);
+        }
+      };
+      nextVid.play().catch(() => {});
+      preloadStandby(pState);
+    }
+
+    function updateStatsUI(pState, prefix) {
+      const av = activeVid(pState);
+      const bufSec = queuedSeconds(pState) +
+        (pState.chunkPlaying && av.duration ? Math.max(0, av.duration - av.currentTime) : 0);
+      const r = pState.lastRend || pState.dlTargetRend;
+      document.getElementById(prefix + "RungPill").textContent = r ? r.name : "—";
+      document.getElementById(prefix + "Rung").textContent = r ? r.name : "—";
+      document.getElementById(prefix + "Br").textContent = r ? `${r.bitrate_kbps} kbps` : "0 kbps";
+      document.getElementById(prefix + "Buf").textContent = `${bufSec.toFixed(1)} s`;
+      document.getElementById(prefix + "Rebuf").textContent = `${pState.rebufCount} (${pState.stallS.toFixed(1)}s)`;
+      document.getElementById(prefix + "Bytes").textContent = `${(pState.bytesDown / 1e6).toFixed(2)} MB`;
+      document.getElementById(prefix + "Ssim").textContent = r && (r.roi_ssim || r.ssim) ? Number(r.roi_ssim || r.ssim).toFixed(4) : "—";
+    }
+
+    function stepSimulation() {
+      if (!running) return;
+      const dt = 0.025;
+      const bytesPerTick = (liveBwKbps * 1000 / 8) * dt;
+
+      [
+        [conv, "conventional", "c"],
+        [prop, "content_aware", "p"]
+      ].forEach(([ps, dir, prefix]) => {
+        const bwAlpha = ps.mode === "prop" ? (liveBwKbps < ps.estBw ? 0.30 : 0.16) : 0.06;
+        ps.estBw = (1 - bwAlpha) * ps.estBw + bwAlpha * liveBwKbps;
+
+        if (ps.mode === "prop" && ps.dlActive && ps.dlTargetRend && ps.dlTargetRend.name !== ps.dlChunkObj.renditions[0].name) {
+          const remBytes = Math.max(0, ps.dlTargetRend.size_bytes - ps.dlProgressBytes);
+          const estRemSec = (remBytes * 8) / Math.max(1000, liveBwKbps * 1000);
+          if (estRemSec > 1.5 && liveBwKbps < ps.dlTargetRend.bitrate_kbps * 0.75) {
+            ps.bytesDown += Math.round(ps.dlProgressBytes);
+            ps.dlToken += 1;
+            if (ps.dlBlobUrl) URL.revokeObjectURL(ps.dlBlobUrl);
+            ps.dlActive = false;
+            ps.dlBlobUrl = null;
+          }
+        }
+
+        startNextDownload(ps, dir);
+        if (ps.dlActive && ps.dlTargetRend) {
+          ps.dlProgressBytes += bytesPerTick;
+          if (ps.dlProgressBytes >= ps.dlTargetRend.size_bytes && ps.dlBlobUrl) {
+            const finishedRend = ps.dlTargetRend;
+            const finishedChunk = ps.dlChunkObj;
+            const dlIdx = ps.dlIdx;
+            const blobUrl = ps.dlBlobUrl;
+            ps.bytesDown += finishedRend.size_bytes;
+            ps.dlIdx += 1;
+            ps.dlActive = false;
+            ps.dlBlobUrl = null;
+            ps.buffer.push({ idx: dlIdx, dur: finishedChunk.duration, rend: finishedRend, blobUrl });
+            preloadStandby(ps);
+            if (!ps.chunkPlaying) playNextFromBuffer(ps);
+          }
+        }
+        if (ps.stalled) ps.stallS += dt;
+        if (!ps.chunkPlaying && queuedCount(ps) > 0) playNextFromBuffer(ps);
+        drawOverlay(ps);
+        updateStatsUI(ps, prefix);
+      });
+
+      document.getElementById("chunkInfo").textContent =
+        `Chunk #${prop.playIdx + 1} / ${prop.chunks.length} · Live Throttle: ${liveBwKbps} kbps`;
+    }
+
+    function syncAudioUI() {
+      const btn = document.getElementById("btnAudio");
+      btn.textContent = audioEnabled ? "🔊 Audio On [M]" : "🔇 Audio Off [M]";
+      btn.classList.toggle("btn-active", audioEnabled);
+      if (conv) conv.vidEls.forEach((v) => { v.muted = true; });
+      if (prop) {
+        activeVid(prop).muted = !audioEnabled;
+        standbyVid(prop).muted = true;
+      }
+    }
+
+    function resetPlayerState(ps) {
+      if (!ps) return;
+      ps.vidEls.forEach((v, idx) => {
+        v.onended = null;
+        v.pause();
+        v.classList.toggle("active", idx === 0);
+        if (v.dataset.blobUrl) {
+          URL.revokeObjectURL(v.dataset.blobUrl);
+          delete v.dataset.blobUrl;
+        }
+        v.removeAttribute("src");
+        v.load();
+      });
+      if (ps.preloadedItem) URL.revokeObjectURL(ps.preloadedItem.blobUrl);
+      ps.buffer.forEach((b) => URL.revokeObjectURL(b.blobUrl));
+      if (ps.dlBlobUrl) URL.revokeObjectURL(ps.dlBlobUrl);
+    }
+
+    function startPlayback(unmuteOnUserGesture = false) {
+      if (unmuteOnUserGesture) audioEnabled = true;
+      if (timerId) clearInterval(timerId);
+      resetPlayerState(conv);
+      resetPlayerState(prop);
+      conv = makePlayerState(
+        "conv",
+        DATA.convChunks,
+        [document.getElementById("cVidA"), document.getElementById("cVidB")],
+        document.getElementById("cCanvas"),
+        document.getElementById("cStall")
+      );
+      prop = makePlayerState(
+        "prop",
+        DATA.caChunks,
+        [document.getElementById("pVidA"), document.getElementById("pVidB")],
+        document.getElementById("pCanvas"),
+        document.getElementById("pStall")
+      );
+      syncAudioUI();
+      running = true;
+      timerId = setInterval(stepSimulation, 25);
+    }
+
+    function setBw(kbps) {
+      liveBwKbps = kbps;
+      document.getElementById("bwRange").value = kbps;
+      document.getElementById("bwText").textContent = `${kbps} kbps`;
+    }
+
+    function toggleHeat() {
+      showHeatmap = !showHeatmap;
+      document.getElementById("btnHeat").classList.toggle("btn-active", showHeatmap);
+      if (conv) drawOverlay(conv);
+      if (prop) drawOverlay(prop);
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      syncAudioUI();
+    }
+
+    document.getElementById("btnStart").addEventListener("click", () => startPlayback(true));
+    document.getElementById("btnAudio").addEventListener("click", toggleAudio);
+    document.getElementById("btnDrop").addEventListener("click", () => setBw(300));
+    document.getElementById("btnRecover").addEventListener("click", () => setBw(3000));
+    document.getElementById("btnHeat").addEventListener("click", toggleHeat);
+    document.getElementById("bwRange").addEventListener("input", (e) => setBw(Number(e.target.value)));
+
+    window.addEventListener("keydown", (e) => {
+      const k = e.key.toLowerCase();
+      if (k === "h") toggleHeat();
+      if (k === "m") toggleAudio();
+      if (k === "d") setBw(300);
+      if (k === "r") setBw(3000);
+    });
+
+    startPlayback(false);
+  </script>
+</body>
+</html>

@@ -49,10 +49,12 @@ def select_budget_aware(
     remaining_budget_bytes: int,
     remaining_chunks: int,
     priority: str | float = "medium",
-    safety_factor: float = 0.85,
+    safety_factor: float = 0.78,
     buffer_s: float | None = None,
+    viewer_focus: str = "balanced",
+    roi_label: str | None = None,
 ) -> dict[str, Any]:
-    """Select quality using bandwidth, remaining budget, buffer, and chunk priority."""
+    """Select quality optimizing ROI clarity under bandwidth, buffer, budget, and viewer focus."""
 
     if not renditions:
         raise ValueError("At least one rendition is required.")
@@ -88,9 +90,9 @@ def select_budget_aware(
     if priority not in priority_weights:
         raise ValueError("Priority must be low, medium or high.")
 
-    # Tighten bandwidth safety margin when playback buffer is dangerously low.
-    low_buffer = buffer_s is not None and buffer_s < 1.5
-    effective_safety = min(safety_factor, 0.65) if low_buffer else safety_factor
+    # Tighten bandwidth safety margin when playback buffer is low to prevent stalls.
+    low_buffer = buffer_s is not None and buffer_s < 2.0
+    effective_safety = min(safety_factor, 0.60) if low_buffer else safety_factor
     safe_bandwidth = bandwidth_kbps * effective_safety
     chunk_allowance = remaining_budget_bytes / remaining_chunks
 
@@ -113,10 +115,17 @@ def select_budget_aware(
         return min(bandwidth_options, key=_get_size)
 
     cost_weight = priority_weights[priority]
+    focus = str(viewer_focus).lower()
+    if (
+        (focus == "people" and roi_label == "face")
+        or (focus == "action" and priority == "high")
+        or (focus in ("text", "detail") and roi_label is not None)
+    ):
+        cost_weight *= 0.5  # refine bit allocation toward viewer's chosen focus
 
     def utility(rendition: dict[str, Any]) -> float:
-        ssim = float(rendition.get("ssim", 0.0))
+        quality = float(rendition.get("roi_ssim") or rendition.get("ssim") or 0.0)
         size_ratio = _get_size(rendition) / max(chunk_allowance, 1)
-        return ssim - (cost_weight * size_ratio)
+        return quality - (cost_weight * size_ratio)
 
     return max(budget_options, key=utility)

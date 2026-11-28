@@ -31,11 +31,14 @@ def load(path: str) -> dict[str, list[dict]]:
 def stats(rows: list[dict]) -> dict:
     sizes = [r["size_bytes"] for r in rows]
     ssims = [r["ssim"] for r in rows if r["ssim"] is not None]
+    roi_ssims = [r["roi_ssim"] for r in rows if r.get("roi_ssim") is not None]
     total_mb = sum(sizes) / 1e6
     mean_ssim = sum(ssims) / len(ssims) if ssims else float("nan")
+    mean_roi = sum(roi_ssims) / len(roi_ssims) if roi_ssims else float("nan")
     return {
         "mb": total_mb,
         "mean_ssim": mean_ssim,
+        "mean_roi_ssim": mean_roi,
         "min_ssim": min(ssims) if ssims else float("nan"),
         "ssim_per_mb": mean_ssim / total_mb if total_mb else float("nan"),
     }
@@ -59,8 +62,8 @@ def main() -> None:
             "bytes_change_%": round((k["mb"] / c["mb"] - 1) * 100, 1),
             "conv_mean_ssim": round(c["mean_ssim"], 5),
             "ca_mean_ssim": round(k["mean_ssim"], 5),
-            "conv_min_ssim": round(c["min_ssim"], 5),
-            "ca_min_ssim": round(k["min_ssim"], 5),
+            "conv_roi_ssim": round(c["mean_roi_ssim"], 5),
+            "ca_roi_ssim": round(k["mean_roi_ssim"], 5),
         })
 
     cols = list(rows[0].keys())

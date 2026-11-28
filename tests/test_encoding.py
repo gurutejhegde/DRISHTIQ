@@ -36,6 +36,7 @@ def test_load_metadata_and_crf_allocation(tmp_path):
                 "combined_score": 0.1,
                 "complexity": "low",
                 "priority": "low",
+                "roi_boxes": [{"x": 0.2, "y": 0.2, "width": 0.4, "height": 0.5, "label": "face"}],
             },
             {
                 "chunk_index": 1,
@@ -54,11 +55,12 @@ def test_load_metadata_and_crf_allocation(tmp_path):
     assert len(chunks) == 2
     assert chunks[0]["complexity"] == 0.0
     assert chunks[1]["complexity"] == 1.0
+    assert chunks[0]["primary_roi"]["label"] == "face"
     # Higher complexity + priority must receive a lower CRF (more bits)
     assert crf_for(chunks[1], "360p") < crf_for(chunks[0], "360p")
 
 
-def test_encode_video_and_alignment(mini_video, tmp_path):
+def test_encode_video_roi_and_alignment(mini_video, tmp_path):
     metadata = [
         {
             "chunk_index": 0,
@@ -67,6 +69,9 @@ def test_encode_video_and_alignment(mini_video, tmp_path):
             "combined_score": 0.6,
             "priority": "high",
             "complexity": "high",
+            "roi_boxes": [
+                {"x": 0.25, "y": 0.25, "width": 0.45, "height": 0.50, "label": "saliency"}
+            ],
         }
     ]
     out_dir = tmp_path / "chunks"
@@ -88,5 +93,10 @@ def test_encode_video_and_alignment(mini_video, tmp_path):
 
         data = json.loads(mpath.read_text(encoding="utf-8"))
         renditions = data["chunks"][0]["renditions"]
-        assert [r["name"] for r in renditions] == ["240p", "360p"]
-        assert all(r["size_bytes"] > 0 and r["ssim"] is not None for r in renditions)
+        assert [r["name"] for r in renditions] == ["144p", "240p", "360p"]
+        assert all(
+            r["size_bytes"] > 0 and r["ssim"] is not None and r["roi_ssim"] is not None
+            for r in renditions
+        )
+        if mode_name == "content_aware":
+            assert all(r["roi_applied"] is True for r in renditions)

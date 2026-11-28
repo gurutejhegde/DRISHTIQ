@@ -123,7 +123,23 @@ def test_run_stream_and_save_report(sample_manifest, tmp_path):
     assert prop["total_downloaded_bytes"] <= budget
     assert prop["downloaded_chunks"] >= conv["downloaded_chunks"]
     assert "average_ssim" in prop
+    assert "average_roi_ssim" in prop
     assert prop["logs"][0]["path"].endswith("chunk_000.mp4")
 
     json_file, csv_file = save_report(prop, output_dir=tmp_path)
     assert json_file.exists() and csv_file.exists()
+
+
+def test_viewer_focus_refines_roi_quality(sample_renditions):
+    focused = [{**r, "roi_ssim": min(0.999, r["ssim"] + 0.02)} for r in sample_renditions]
+    pick = select_budget_aware(
+        focused,
+        bandwidth_kbps=1600,
+        remaining_budget_bytes=300_000,
+        remaining_chunks=1,
+        priority="medium",
+        viewer_focus="people",
+        roi_label="face",
+    )
+    assert pick["name"] == "480p"
+

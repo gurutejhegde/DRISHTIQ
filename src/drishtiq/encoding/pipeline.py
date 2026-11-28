@@ -32,6 +32,7 @@ from pathlib import Path
 # 1. CONFIGURATION (tune these, document your choices in the report)
 # ----------------------------------------------------------------------------
 LADDER = [  # name, output height, nominal bitrate (kbps) for the conventional set
+    {"name": "144p", "height": 144, "bitrate_kbps": 200},
     {"name": "240p", "height": 240, "bitrate_kbps": 400},
     {"name": "360p", "height": 360, "bitrate_kbps": 800},
     {"name": "480p", "height": 480, "bitrate_kbps": 1200},
@@ -39,13 +40,24 @@ LADDER = [  # name, output height, nominal bitrate (kbps) for the conventional s
     {"name": "1080p", "height": 1080, "bitrate_kbps": 5000},
 ]
 # Base CRF per rung for the content-aware set (lower = better quality / more bytes)
-BASE_CRF = {"240p": 24, "360p": 22, "480p": 24, "720p": 26, "1080p": 25}
-CRF_SWING = 4  # content-aware CRF = base +/- up to this many steps
-CRF_MIN, CRF_MAX = 16, 35  # safety clamp
+BASE_CRF = {"144p": 24, "240p": 23, "360p": 22, "480p": 22, "720p": 21, "1080p": 21}
+CRF_SWING = 3  # content-aware CRF = base +/- up to this many steps
+CRF_MIN, CRF_MAX = 16, 34
 W_COMPLEXITY, W_PRIORITY = 0.5, 0.5  # how the two scores combine
+ROI_QOFFSET = "-0.50"  # strong negative QP offset concentrates bits into sharp ROI
+BG_CRF_PENALTY = 2  # light CRF lift for non-ROI areas; addroi offsets ROI back down
 CONV_MAXRATE_FACTOR = 1.2  # conventional: maxrate = bitrate * factor
-CA_MAXRATE_FACTOR = 1.5  # content-aware: cap so bitrate never explodes
+CA_MAXRATE_FACTOR = 0.72  # keep content-aware noticeably leaner than conventional per rung
 GOP_SECONDS = 2  # fixed GOP / forced keyframe interval
+
+
+def _bg_blur_sigma(height: int) -> float:
+    """Resolution-scaled background pre-filter (invisible at HD, bit-saving at low res)."""
+    if height >= 720:
+        return 0.5
+    if height >= 360:
+        return 1.0
+    return 1.3
 
 LABEL_TO_SCORE = {"low": 0.2, "medium": 0.5, "med": 0.5, "high": 0.8}
 
@@ -154,6 +166,31 @@ def _score(value):
         return LABEL_TO_SCORE.get(str(value).strip().lower())
 
 
+def _primary_roi(roi_boxes) -> dict | None:
+    """Pick the clearest normalized ROI bounding box (preferring faces over saliency)."""
+    if not isinstance(roi_boxes, list) or not roi_boxes:
+        return None
+    valid = []
+    for b in roi_boxes:
+        if not isinstance(b, dict):
+            continue
+        x = max(0.0, min(0.9, float(b.get("x", 0.0))))
+        y = max(0.0, min(0.9, float(b.get("y", 0.0))))
+        w = max(0.0, min(1.0 - x, float(b.get("width", 0.0))))
+        h = max(0.0, min(1.0 - y, float(b.get("height", 0.0))))
+        if w >= 0.08 and h >= 0.08:
+            valid.append({
+                "x": round(x, 4),
+                "y": round(y, 4),
+                "width": round(w, 4),
+                "height": round(h, 4),
+                "label": str(b.get("label", "roi")),
+            })
+    if not valid:
+        return None
+    return max(valid, key=lambda b: (b["label"] == "face", b["width"] * b["height"]))
+
+
 def load_metadata(metadata, segment_len: float = 2.0, normalize: bool = True) -> list[dict]:
     """
     Accepts a path (.json/.csv), a list of dicts, or a pandas DataFrame.
@@ -196,6 +233,7 @@ def load_metadata(metadata, segment_len: float = 2.0, normalize: bool = True) ->
                 "complexity": cx,
                 "priority": pr,
                 "label": str(label) if label is not None else None,
+                "primary_roi": _primary_roi(r.get("roi_boxes")),
             }
         )
     if not chunks:
@@ -242,6 +280,9 @@ def encode_chunk(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     gop = max(1, round(fps * GOP_SECONDS))
     br = rung["bitrate_kbps"]
+    vf = f"scale=-2:{rung['height']}:flags=lanczos"
+    roi = chunk.get("primary_roi")
+    roi_applied = False
 
     if mode == "conventional":
         crf = None
@@ -254,9 +295,28 @@ def encode_chunk(
             f"{int(br * 2)}k",
         ]
     else:
-        crf = crf_for(chunk, rung["name"])
+        # Soften non-ROI background cleanly with even-pixel alignment + strong ROI QP offset
+        base_crf = crf_for(chunk, rung["name"])
+        crf = min(CRF_MAX, base_crf + BG_CRF_PENALTY) if roi else base_crf
+        if roi:
+            rx, ry, rw, rh = roi["x"], roi["y"], roi["width"], roi["height"]
+            bg_sigma = _bg_blur_sigma(rung["height"])
+            px_in, py_in = f"trunc(iw*{rx:.4f}/2)*2", f"trunc(ih*{ry:.4f}/2)*2"
+            pw_in = f"max(8\\,trunc(iw*{rw:.4f}/2)*2)"
+            ph_in = f"max(8\\,trunc(ih*{rh:.4f}/2)*2)"
+            px_ov, py_ov = f"trunc(W*{rx:.4f}/2)*2", f"trunc(H*{ry:.4f}/2)*2"
+            vf = (
+                f"scale=-2:{rung['height']}:flags=lanczos[s];"
+                f"[s]split[bg][fg];"
+                f"[bg]gblur=sigma={bg_sigma}[bgb];"
+                f"[fg]crop={pw_in}:{ph_in}:{px_in}:{py_in}[fgc];"
+                f"[bgb][fgc]overlay={px_ov}:{py_ov},"
+                f"addroi=x={px_in}:y={py_in}:w={pw_in}:h={ph_in}:qoffset={ROI_QOFFSET}"
+            )
+            roi_applied = True
         mr = int(br * CA_MAXRATE_FACTOR)
-        rate = ["-crf", str(crf), "-maxrate", f"{mr}k", "-bufsize", f"{mr * 2}k"]
+        bs = max(32, mr // 2)
+        rate = ["-crf", str(crf), "-maxrate", f"{mr}k", "-bufsize", f"{bs}k"]
 
     cmd = [
         "ffmpeg",
@@ -271,7 +331,7 @@ def encode_chunk(
         "-t",
         f"{chunk['duration']:.3f}",
         "-vf",
-        f"scale=-2:{rung['height']}:flags=lanczos",
+        vf,
         "-c:v",
         "libx264",
         "-preset",
@@ -290,7 +350,7 @@ def encode_chunk(
         "-c:a",
         "aac",
         "-b:a",
-        "96k",
+        "64k",
         "-ac",
         "2",
         "-movflags",
@@ -299,18 +359,33 @@ def encode_chunk(
     ]
     if not out_path.exists():  # resume support: skip finished chunks
         run(cmd)
-    return {"crf": crf}
+    return {"crf": crf, "roi_applied": roi_applied}
 
 
 # ----------------------------------------------------------------------------
-# 6. QUALITY MEASUREMENT (SSIM vs. source, at the rendition's resolution)
+# 6. QUALITY MEASUREMENT (Common display-resolution Full-frame + ROI SSIM)
 # ----------------------------------------------------------------------------
-def measure_ssim(src: str, chunk: dict, enc_path: Path, width: int, height: int) -> float | None:
-    flt = (
-        f"[0:v]setpts=PTS-STARTPTS[d];"
-        f"[1:v]scale={width}:{height}:flags=bicubic,setpts=PTS-STARTPTS[r];"
-        f"[d][r]ssim"
-    )
+def measure_ssim(
+    src: str, chunk: dict, enc_path: Path, ref_width: int, ref_height: int, roi: dict | None = None
+) -> tuple[float | None, float | None]:
+    """Compare encoded chunk against original source at common display resolution."""
+    if roi:
+        crop = (
+            f"crop=max(8\\,iw*{roi['width']:.4f}):max(8\\,ih*{roi['height']:.4f})"
+            f":iw*{roi['x']:.4f}:ih*{roi['y']:.4f}"
+        )
+        flt = (
+            f"[0:v]scale={ref_width}:{ref_height}:flags=bicubic,setpts=PTS-STARTPTS,split[d1][d2];"
+            f"[1:v]scale={ref_width}:{ref_height}:flags=bicubic,setpts=PTS-STARTPTS,split[r1][r2];"
+            f"[d1][r1]ssim;[d2]{crop}[dc];[r2]{crop}[rc];[dc][rc]ssim"
+        )
+    else:
+        flt = (
+            f"[0:v]scale={ref_width}:{ref_height}:flags=bicubic,setpts=PTS-STARTPTS[d];"
+            f"[1:v]scale={ref_width}:{ref_height}:flags=bicubic,setpts=PTS-STARTPTS[r];"
+            f"[d][r]ssim"
+        )
+
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -329,8 +404,16 @@ def measure_ssim(src: str, chunk: dict, enc_path: Path, width: int, height: int)
         "-",
     ]
     p = subprocess.run(cmd, capture_output=True, text=True)
-    m = re.search(r"All:([0-9.]+)", p.stderr)
-    return float(m.group(1)) if m else None
+    if not roi:
+        m = re.search(r"All:([0-9.]+)", p.stderr)
+        return (float(m.group(1)) if m else None, None)
+
+    matches = re.findall(r"Parsed_ssim_(\d+).*?All:([0-9.]+)", p.stderr)
+    if len(matches) >= 2:
+        ordered = sorted(matches, key=lambda pair: int(pair[0]))
+        return float(ordered[0][1]), float(ordered[1][1])
+    vals = re.findall(r"All:([0-9.]+)", p.stderr)
+    return (float(vals[0]) if vals else None, float(vals[1]) if len(vals) > 1 else None)
 
 
 # ----------------------------------------------------------------------------
@@ -338,6 +421,8 @@ def measure_ssim(src: str, chunk: dict, enc_path: Path, width: int, height: int)
 # ----------------------------------------------------------------------------
 def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, do_ssim):
     mode_dir = Path(out_dir) / mode
+    ref_h = rungs[-1]["height"]
+    ref_w = max(2, int(round(info["width"] * ref_h / max(info["height"], 1) / 2)) * 2)
     jobs = []
     for c in chunks:
         for r in rungs:
@@ -349,7 +434,11 @@ def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, d
         extra = encode_chunk(src, c, r, mode, path, info["fps"], preset)
         meta = probe_chunk(path)
         size = path.stat().st_size
-        ssim = measure_ssim(src, c, path, meta["width"], meta["height"]) if do_ssim else None
+        ssim, roi_ssim = (
+            measure_ssim(src, c, path, ref_w, ref_h, c.get("primary_roi"))
+            if do_ssim
+            else (None, None)
+        )
         return c["index"], {
             "name": r["name"],
             "height": meta["height"],
@@ -358,6 +447,8 @@ def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, d
             "size_bytes": size,
             "bitrate_kbps": round(size * 8 / max(meta["duration"], 1e-6) / 1000, 1),
             "ssim": ssim,
+            "roi_ssim": roi_ssim,
+            "roi_applied": extra["roi_applied"],
             "crf": extra["crf"],
         }
 
@@ -390,6 +481,7 @@ def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, d
                 "complexity": c["complexity"],
                 "priority": c["priority"],
                 "label": c["label"],
+                "roi_box": c.get("primary_roi"),
                 "renditions": rends,
             }
         )
@@ -409,9 +501,11 @@ def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, d
                 "priority",
                 "rendition",
                 "crf",
+                "roi_applied",
                 "size_bytes",
                 "bitrate_kbps",
                 "ssim",
+                "roi_ssim",
                 "path",
             ]
         )
@@ -427,9 +521,11 @@ def _encode_one_mode(src, chunks, mode, out_dir, info, rungs, preset, workers, d
                         c["priority"],
                         r["name"],
                         r["crf"],
+                        r["roi_applied"],
                         r["size_bytes"],
                         r["bitrate_kbps"],
                         r["ssim"],
+                        r["roi_ssim"],
                         r["path"],
                     ]
                 )

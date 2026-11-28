@@ -109,6 +109,8 @@ def test_full_analysis_pipeline(sample_synthetic_video: Path, tmp_path: Path):
     # Chunk 1 (high texture + movement) must have higher complexity than Chunk 0
     assert chunk_1.combined_score > chunk_0.combined_score
     assert chunk_1.complexity in [ComplexityLevel.MEDIUM, ComplexityLevel.HIGH]
+    assert len(chunk_1.saliency_heatmap) == 14
+    assert len(chunk_1.saliency_heatmap[0]) == 24
 
     # Verify JSON export & import round-trip
     json_path = tmp_path / "report.json"

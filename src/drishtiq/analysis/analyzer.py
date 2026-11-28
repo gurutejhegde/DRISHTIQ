@@ -45,6 +45,12 @@ class ContentAnalyzer:
         self.texture_weight = texture_weight
         self.motion_weight = motion_weight
 
+        # Precompute gentle spatial center-bias mask at saliency working size (160x90)
+        yy, xx = np.mgrid[0:90, 0:160]
+        cx, cy = 80.0, 45.0
+        dist2 = ((xx - cx) / 70.0) ** 2 + ((yy - cy) / 40.0) ** 2
+        self._center_prior = (0.78 + 0.22 * np.exp(-0.5 * dist2)).astype(np.float32)
+
         # Optional facial cascade (if supported by installed OpenCV build)
         self.face_cascade = None
         has_cascade = (
@@ -155,8 +161,42 @@ class ContentAnalyzer:
         norm_motion = np.clip(avg_mag / 4.0, 0.0, 1.0)
         return float(norm_motion)
 
-    def detect_rois(self, frame: np.ndarray) -> List[BoundingBox]:
-        """Detect key visual regions of interest (Faces and Saliency bounding boxes)."""
+    def compute_saliency_map(
+        self, frame: np.ndarray, prev_gray: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Compute normalized 2D visual saliency map (90x160) from LAB contrast, motion, & edges."""
+        small_bgr = cv2.resize(frame, (160, 90), interpolation=cv2.INTER_AREA)
+        lab = cv2.cvtColor(small_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+        lab_blur = cv2.GaussianBlur(lab, (5, 5), 0)
+        lab_mean = lab.mean(axis=(0, 1), keepdims=True)
+        color_sal = np.linalg.norm(lab_blur - lab_mean, axis=2)
+        color_sal = color_sal / (color_sal.max() + 1e-6)
+
+        gray = cv2.cvtColor(small_bgr, cv2.COLOR_BGR2GRAY)
+        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        edge_sal = cv2.magnitude(gx, gy)
+        edge_sal = edge_sal / (edge_sal.max() + 1e-6)
+
+        if prev_gray is not None:
+            small_prev = cv2.resize(prev_gray, (160, 90), interpolation=cv2.INTER_AREA)
+            mot = cv2.absdiff(gray, small_prev).astype(np.float32)
+            mot_sal = mot / (mot.max() + 1e-6)
+            fused = 0.40 * color_sal + 0.35 * mot_sal + 0.25 * edge_sal
+        else:
+            fused = 0.58 * color_sal + 0.42 * edge_sal
+
+        fused = cv2.GaussianBlur(fused * self._center_prior, (11, 11), 0)
+        peak = float(fused.max())
+        return (fused / peak) if peak > 1e-6 else np.zeros((90, 160), dtype=np.float32)
+
+    def detect_rois(
+        self,
+        frame: np.ndarray,
+        prev_gray: Optional[np.ndarray] = None,
+        saliency_map: Optional[np.ndarray] = None,
+    ) -> List[BoundingBox]:
+        """Detect key visual regions of interest (Faces and multi-cue Saliency boxes)."""
         boxes: List[BoundingBox] = []
         if frame is None or frame.size == 0:
             return boxes
@@ -181,30 +221,44 @@ class ContentAnalyzer:
                     )
                 )
 
-        # 2. Gradient energy saliency fallback if no faces detected
+        # 2. Multi-cue saliency peak localization
         if not boxes:
-            small = cv2.resize(gray, (160, 90))
-            grad_x = cv2.Sobel(small, cv2.CV_32F, 1, 0)
-            grad_y = cv2.Sobel(small, cv2.CV_32F, 0, 1)
-            mag = cv2.magnitude(grad_x, grad_y)
-            _, thresh = cv2.threshold(mag, np.percentile(mag, 85), 255, cv2.THRESH_BINARY)
-            contours, _ = cv2.findContours(
-                thresh.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            smap = (
+                saliency_map
+                if saliency_map is not None
+                else self.compute_saliency_map(frame, prev_gray)
             )
-            if contours:
-                largest = max(contours, key=cv2.contourArea)
-                cx, cy, cw, ch = cv2.boundingRect(largest)
-                if cw > 15 and ch > 15:
-                    boxes.append(
-                        BoundingBox(
-                            x=round(cx / 160.0, 4),
-                            y=round(cy / 90.0, 4),
-                            width=round(cw / 160.0, 4),
-                            height=round(ch / 90.0, 4),
-                            label="saliency",
-                            confidence=0.7,
-                        )
+            if float(smap.max()) < 0.05:
+                return boxes
+
+            thresh_val = max(0.42, float(np.percentile(smap, 84)))
+            mask = (smap >= thresh_val).astype(np.uint8) * 255
+            kernel = np.ones((5, 5), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:2]
+
+            for cnt in contours:
+                cx, cy, cw, ch = cv2.boundingRect(cnt)
+                if cw < 12 or ch < 12:
+                    continue
+                rw, rh = min(cw / 160.0, 0.50), min(ch / 90.0, 0.62)
+                patch = smap[cy : cy + ch, cx : cx + cw]
+                py, px = np.unravel_index(np.argmax(patch), patch.shape)
+                peak_x, peak_y = (cx + px) / 160.0, (cy + py) / 90.0
+                rx = float(np.clip(peak_x - rw / 2, 0.0, 1.0 - rw))
+                ry = float(np.clip(peak_y - rh / 2, 0.0, 1.0 - rh))
+                conf = round(float(np.clip(patch.mean(), 0.5, 0.95)), 2)
+                boxes.append(
+                    BoundingBox(
+                        x=round(rx, 4),
+                        y=round(ry, 4),
+                        width=round(rw, 4),
+                        height=round(rh, 4),
+                        label="motion" if prev_gray is not None else "saliency",
+                        confidence=conf,
                     )
+                )
 
         return boxes
 
@@ -264,6 +318,7 @@ class ContentAnalyzer:
             chunk_textures: List[float] = []
             chunk_motions: List[float] = []
             chunk_rois: List[BoundingBox] = []
+            chunk_smaps: List[np.ndarray] = []
 
             # Count scene cuts falling inside this chunk
             cuts_in_chunk = sum(1 for cut in scene_cuts if start_s <= cut < end_s)
@@ -283,16 +338,26 @@ class ContentAnalyzer:
                     motion_val = self.compute_motion_score(prev_gray_frame, gray)
                     chunk_motions.append(motion_val)
 
-                prev_gray_frame = gray
+                smap = self.compute_saliency_map(frame, prev_gray=prev_gray_frame)
+                chunk_smaps.append(cv2.resize(smap, (24, 14), interpolation=cv2.INTER_AREA))
 
-                # Sample ROI on every second sampled frame
+                # Sample ROI using multi-cue saliency before updating prev_gray_frame
                 if len(chunk_rois) < 3 and (len(chunk_textures) % 2 == 1):
-                    detected = self.detect_rois(frame)
+                    detected = self.detect_rois(
+                        frame, prev_gray=prev_gray_frame, saliency_map=smap
+                    )
                     chunk_rois.extend(detected)
 
-            # Aggregate scores for chunk
+                prev_gray_frame = gray
+
+            # Aggregate scores and average saliency heatmap for chunk
             avg_texture = float(np.mean(chunk_textures)) if chunk_textures else 0.0
             avg_motion = float(np.mean(chunk_motions)) if chunk_motions else 0.0
+            if chunk_smaps:
+                mean_smap = np.mean(chunk_smaps, axis=0)
+                heatmap_grid = [[round(float(v), 2) for v in row] for row in mean_smap]
+            else:
+                heatmap_grid = []
 
             combined, complexity, priority = self.classify_chunk(
                 texture_score=avg_texture,
@@ -314,6 +379,7 @@ class ContentAnalyzer:
                     complexity=complexity,
                     priority=priority,
                     roi_boxes=chunk_rois[:4],
+                    saliency_heatmap=heatmap_grid,
                 )
             )
 

@@ -31,6 +31,7 @@ def run_stream(
     bandwidth: float | list[float],
     budget: int,
     initial_buffer_s: float = 0.0,
+    viewer_focus: str = "balanced",
 ) -> dict[str, Any]:
     """Simulate adaptive streaming and return per-chunk performance logs.
 
@@ -94,6 +95,7 @@ def run_stream(
                 bandwidth_kbps=estimated_bandwidth,
             )
         else:
+            roi_box = chunk.get("roi_box") or {}
             selected = select_budget_aware(
                 renditions,
                 bandwidth_kbps=estimated_bandwidth,
@@ -101,6 +103,8 @@ def run_stream(
                 remaining_chunks=len(chunks) - index,
                 priority=chunk.get("priority", "medium"),
                 buffer_s=buffer_s if index > 0 else None,
+                viewer_focus=viewer_focus,
+                roi_label=roi_box.get("label") if isinstance(roi_box, dict) else None,
             )
 
         size_bytes = int(selected["size_bytes"])
@@ -154,6 +158,7 @@ def run_stream(
             "bitrate_kbps": float(selected["bitrate_kbps"]),
             "size_bytes": size_bytes,
             "ssim": float(selected.get("ssim", 0.0)),
+            "roi_ssim": float(selected.get("roi_ssim") or selected.get("ssim") or 0.0),
             "download_time_s": round(download_time_s, 3),
             "buffer_s": round(buffer_s, 3),
             "stall_s": round(stall_s, 3),
@@ -165,9 +170,11 @@ def run_stream(
     downloaded_count = len(downloaded_entries)
     avg_buffer = sum(e["buffer_s"] for e in downloaded_entries) / max(downloaded_count, 1)
     avg_ssim = sum(e["ssim"] for e in downloaded_entries) / max(downloaded_count, 1)
+    avg_roi_ssim = sum(e["roi_ssim"] for e in downloaded_entries) / max(downloaded_count, 1)
 
     return {
         "mode": mode,
+        "viewer_focus": viewer_focus,
         "total_chunks": len(chunks),
         "downloaded_chunks": downloaded_count,
         "total_downloaded_bytes": total_downloaded,
@@ -175,6 +182,7 @@ def run_stream(
         "total_stall_s": round(total_stall_s, 3),
         "average_buffer_s": round(avg_buffer, 3),
         "average_ssim": round(avg_ssim, 5),
+        "average_roi_ssim": round(avg_roi_ssim, 5),
         "logs": logs,
     }
 

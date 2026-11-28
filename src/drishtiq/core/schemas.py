@@ -48,6 +48,10 @@ class ChunkAnalysis(BaseModel):
     roi_boxes: List[BoundingBox] = Field(
         default_factory=list, description="Regions of interest in chunk"
     )
+    saliency_heatmap: List[List[float]] = Field(
+        default_factory=list,
+        description="2D visual saliency grid (rows x cols, 0.0-1.0) for heatmap overlay",
+    )
 
 
 class VideoMetadata(BaseModel):
